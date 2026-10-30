@@ -29,6 +29,12 @@ describe('the Content-Security-Policy', () => {
     );
   });
 
+  it('a hash source under requires is kept verbatim, before the origins, never as an origin (CMU-PM-04)', () => {
+    const hash = `'sha256-${'A'.repeat(43)}='`;
+    const p = mergePolicy({ surfaces: { widget: { csp: { 'script-src': ['https://widget.chatlychat.com', hash] }, requires: { 'script-src': [hash, "'nonce-x'"] } } } });
+    expect(p.get('script-src')).toEqual(["'self'", hash, 'https://widget.chatlychat.com']);
+  });
+
   it('reads the site manifest and gives next.config headers; a failed read throws', async () => {
     const seen: string[] = [];
     const ok = (async (url: string) => { seen.push(url); return new Response(JSON.stringify(MANIFEST), { status: 200 }); }) as unknown as typeof fetch;

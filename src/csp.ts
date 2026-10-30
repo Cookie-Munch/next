@@ -22,7 +22,8 @@ interface Manifest {
 }
 
 const ORIGIN = /^(https|wss):\/\/[^\s*'"{]+$/;
-const KEYWORD = /^('self'|'unsafe-inline'|'unsafe-eval'|'wasm-unsafe-eval'|'unsafe-hashes'|data:|blob:)$/;
+// A hash source ('sha256-…') is a keyword here: copied verbatim, never read as an origin.
+const KEYWORD = /^('self'|'unsafe-inline'|'unsafe-eval'|'wasm-unsafe-eval'|'unsafe-hashes'|data:|blob:|'sha(256|384|512)-[A-Za-z0-9+/_-]+={0,2}')$/;
 const DIRECTIVE = /^[a-z-]+-src$|^form-action$/;
 
 /** The policy as a map, directive → sources (`'self'` first); exported for tests and custom headers. */

@@ -5,7 +5,7 @@ import { defineConfig } from 'tsup';
 export default defineConfig({
   entry: { index: 'src/index.ts' },
   format: ['esm'],
-  dts: true,
+  dts: false,
   sourcemap: true,
   splitting: false,
   external: ['react', '@cookiemunch/react'],
