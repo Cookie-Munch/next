@@ -2,6 +2,10 @@
 
 Every published release, newest first. Dates are the day the version was cut.
 
+## 0.2.0
+
+- `hasConsent(category)` and `onConsentChange(fn)`, which replays a decision made before it subscribed.
+
 ## 0.1.1 (2026-10-30)
 
 - Fixed: `cookieMunchCsp` keeps a manifest's `'sha256-…'` / `'sha384-…'` / `'sha512-…'` hash sources as written instead of treating them as origins.

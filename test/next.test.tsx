@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { CookieMunchScript, cookieMunchCsp, cookieMunchHeaders, mergePolicy, policyString } from '../src/index.js';
+import { hasConsent, onConsentChange, CookieMunchScript, cookieMunchCsp, cookieMunchHeaders, mergePolicy, policyString } from '../src/index.js';
 
 describe('<CookieMunchScript>', () => {
   it('renders the install snippet: a plain tag, blocking on, the culture and test env when asked', () => {
@@ -43,5 +43,47 @@ describe('the Content-Security-Policy', () => {
     expect(headers[0]).toMatchObject({ source: '/(.*)', headers: [{ key: 'Content-Security-Policy' }] });
     const bad = (async () => new Response('', { status: 404 })) as unknown as typeof fetch;
     await expect(cookieMunchCsp({ cbid: 'nope', fetch: bad })).rejects.toThrow(/404/);
+  });
+});
+
+describe('hasConsent and onConsentChange', () => {
+  const stub = (cm: unknown) => {
+    const target = new EventTarget();
+    (globalThis as { window?: unknown }).window = Object.assign(target, { CookieMunch: cm });
+    return target;
+  };
+  const change = (consent: unknown) => new (class extends Event { detail = { consent }; })('CookieMunchOnChange');
+
+  it('on the server: only necessary, and a no-op listener', () => {
+    delete (globalThis as { window?: unknown }).window;
+    expect(hasConsent('necessary')).toBe(true);
+    expect(hasConsent('statistics')).toBe(false);
+    expect(onConsentChange(() => {})).toBeTypeOf('function');
+  });
+
+  it('replays a decision made before it subscribed, fires on change, and unsubscribes', async () => {
+    const seen: unknown[] = [];
+    const w = stub({ hasResponse: true, consent: { statistics: true, marketing: false } });
+    expect(hasConsent('statistics')).toBe(true);
+    expect(hasConsent('marketing')).toBe(false);
+    const stop = onConsentChange((c) => seen.push(c));
+    await Promise.resolve();
+    expect(seen).toEqual([{ statistics: true, marketing: false }]);
+    w.dispatchEvent(change({ statistics: false }));
+    expect(seen).toHaveLength(2);
+    stop();
+    w.dispatchEvent(change({ statistics: true }));
+    expect(seen).toHaveLength(2);
+    delete (globalThis as { window?: unknown }).window;
+  });
+
+  it('no decision yet: nothing is replayed', async () => {
+    const seen: unknown[] = [];
+    stub({ hasResponse: false, consent: {} });
+    expect(hasConsent('statistics')).toBe(false);
+    onConsentChange((c) => seen.push(c));
+    await Promise.resolve();
+    expect(seen).toEqual([]);
+    delete (globalThis as { window?: unknown }).window;
   });
 });
