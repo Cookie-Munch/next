@@ -2,6 +2,10 @@
 
 Every published release, newest first. Dates are the day the version was cut.
 
+## 0.2.1
+
+- `hasConsent` and `onConsentChange` now come from `@cookiemunch/react`. Nothing changes for callers.
+
 ## 0.2.0
 
 - `hasConsent(category)` and `onConsentChange(fn)`, which replays a decision made before it subscribed.
