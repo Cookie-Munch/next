@@ -27,6 +27,11 @@ export default {
 };
 ```
 
+Without `blockingMode`, the tag follows your site's stored `blocking.mode`. Pass `nonce` for a
+per-request CSP. For `proxy.ts`, save `cookieMunchOrigins({ cbid })` in a build step and build each
+request's policy with `cookieMunchCspDirectives(origins, { nonce })`. See
+[the Next.js guide](https://cookiemunch.net/docs/nextjs).
+
 `useConsent()`, `useBannerInset()`, `<ConsentGate>` and `<CookieSettingsLink>` are re-exported from
 [`@cookiemunch/react`](https://www.npmjs.com/package/@cookiemunch/react). `useConsent()` tells "not decided
 yet" apart from "refused". Docs: [cookiemunch.net/docs/nextjs](https://cookiemunch.net/docs/nextjs).

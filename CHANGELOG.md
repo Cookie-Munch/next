@@ -2,6 +2,13 @@
 
 Every published release, newest first. Dates are the day the version was cut.
 
+## 0.3.0 (2026-11-11)
+
+- Changed: `<CookieMunchScript>` no longer defaults `blockingMode` to `auto`. Without the prop it uses the site's stored `blocking.mode`, read from the public config and cached for five minutes. A prop that disagrees with the stored mode logs a warning. It is now an async Server Component.
+- Added: `nonce` and `excludePaths` props on `<CookieMunchScript>`.
+- Added: `onConsentCategory` and `useConsentTransition`, re-exported from `@cookiemunch/react` 0.7.0.
+- Added: `cookieMunchOrigins({ cbid })`, which returns the CSP sources as JSON for a build step to save, and `cookieMunchCspDirectives(origins, { nonce?, extra? })`, which builds each request's policy synchronously in `proxy.ts` or middleware.
+
 ## 0.2.1 (2026-11-05)
 
 - `hasConsent` and `onConsentChange` now come from `@cookiemunch/react`. Nothing changes for callers.

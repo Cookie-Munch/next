@@ -55,7 +55,7 @@ export function policyString(policy: Map<string, string[]>): string {
 /** The `Content-Security-Policy` value for the site. Throws when the manifest cannot be read (a build should fail loudly). */
 export async function cookieMunchCsp(o: CspOptions): Promise<string> {
   const base = (o.apiBase ?? 'https://api.cookiemunch.net').replace(/\/+$/, '');
-  const res = await (o.fetch ?? fetch)(`${base}/v1/embed?cbid=${encodeURIComponent(o.cbid)}`, { headers: { Accept: 'application/json', 'User-Agent': 'cookiemunch-next/0.1.0' } });
+  const res = await (o.fetch ?? fetch)(`${base}/v1/embed?cbid=${encodeURIComponent(o.cbid)}`, { headers: { Accept: 'application/json', 'User-Agent': 'cookiemunch-next/0.3.0' } });
   if (!res.ok) throw new Error(`Cookie Munch: the embed manifest for ${o.cbid} answered ${res.status}`);
   return policyString(mergePolicy((await res.json()) as Manifest, o.extra));
 }
@@ -63,4 +63,40 @@ export async function cookieMunchCsp(o: CspOptions): Promise<string> {
 /** `next.config` `headers()`: the policy on every path. */
 export async function cookieMunchHeaders(o: CspOptions & { source?: string }): Promise<Array<{ source: string; headers: Array<{ key: string; value: string }> }>> {
   return [{ source: o.source ?? '/(.*)', headers: [{ key: 'Content-Security-Policy', value: await cookieMunchCsp(o) }] }];
+}
+
+/**
+ * The CSP sources Cookie Munch needs, by directive (`'self'` first): plain JSON, so a build step can
+ * save it and `proxy.ts` can build each request's policy without a network call.
+ *
+ *   // scripts/cookiemunch-origins.mjs, run before `next build`
+ *   import { writeFileSync } from 'node:fs';
+ *   import { cookieMunchOrigins } from '@cookiemunch/next';
+ *   writeFileSync('cookiemunch-origins.json', JSON.stringify(await cookieMunchOrigins({ cbid: 'your-site-id' })));
+ */
+export async function cookieMunchOrigins(o: Omit<CspOptions, 'extra'>): Promise<Record<string, string[]>> {
+  const base = (o.apiBase ?? 'https://api.cookiemunch.net').replace(/\/+$/, '');
+  const res = await (o.fetch ?? fetch)(`${base}/v1/embed?cbid=${encodeURIComponent(o.cbid)}`, { headers: { Accept: 'application/json', 'User-Agent': 'cookiemunch-next/0.3.0' } });
+  if (!res.ok) throw new Error(`Cookie Munch: the embed manifest for ${o.cbid} answered ${res.status}`);
+  return Object.fromEntries(mergePolicy((await res.json()) as Manifest));
+}
+
+const NONCE = /^[A-Za-z0-9+/_=-]{8,}$/;
+
+/**
+ * The `Content-Security-Policy` value for one request, synchronously, from saved origins: your own
+ * directives merged in, and the request's `nonce` on `script-src` (it then replaces `'unsafe-inline'`
+ * there, as browsers do). For `proxy.ts` (Next 16) or `middleware.ts`.
+ *
+ *   import origins from './cookiemunch-origins.json';
+ *   const nonce = btoa(crypto.randomUUID());
+ *   res.headers.set('Content-Security-Policy', cookieMunchCspDirectives(origins, { nonce, extra: { 'img-src': ['data:'] } }));
+ */
+export function cookieMunchCspDirectives(origins: Record<string, string[]>, o: { nonce?: string; extra?: Record<string, string[]> } = {}): string {
+  const policy = mergePolicy({ surfaces: { saved: { requires: origins } } }, o.extra);
+  if (o.nonce !== undefined) {
+    if (!NONCE.test(o.nonce)) throw new Error('Cookie Munch: the nonce must be base64, at least 8 characters');
+    policy.set('script-src', [...(policy.get('script-src') ?? ["'self'"]), `'nonce-${o.nonce}'`]);
+  }
+  return policyString(policy);
 }

@@ -1,14 +1,49 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { hasConsent, onConsentChange, CookieMunchScript, cookieMunchCsp, cookieMunchHeaders, mergePolicy, policyString } from '../src/index.js';
+import { hasConsent, onConsentChange, CookieMunchScript, cookieMunchCsp, cookieMunchHeaders, cookieMunchOrigins, cookieMunchCspDirectives, mergePolicy, policyString } from '../src/index.js';
 
 describe('<CookieMunchScript>', () => {
-  it('renders the install snippet: a plain tag, blocking on, the culture and test env when asked', () => {
-    expect(renderToStaticMarkup(<CookieMunchScript cbid="acme" />)).toBe('<script id="CookieMunch" src="https://cdn.cookiemunch.net/consent.js" data-cbid="acme" data-blockingmode="auto"></script>');
-    const t = renderToStaticMarkup(<CookieMunchScript cbid="acme" culture="de" env="test" blockingMode="manual" />);
+  const config = (mode: unknown, status = 200) => vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ blocking: { mode } }), { status })));
+  afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+  const html = async (p: Parameters<typeof CookieMunchScript>[0]) => renderToStaticMarkup(await CookieMunchScript(p));
+
+  it('without a prop, follows the site\'s stored blocking mode (FormFlow CM-09)', async () => {
+    config('manual');
+    expect(await html({ cbid: 'acme' })).toBe('<script id="CookieMunch" src="https://cdn.cookiemunch.net/consent.js" data-cbid="acme" data-blockingmode="manual"></script>');
+    config('auto');
+    expect(await html({ cbid: 'acme' })).toContain('data-blockingmode="auto"');
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe('https://api.cookiemunch.net/config/acme');
+  });
+
+  it('an unreadable config leaves the attribute out (manual, as the embed treats it)', async () => {
+    config(undefined, 503);
+    expect(await html({ cbid: 'acme' })).not.toContain('data-blockingmode');
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
+    expect(await html({ cbid: 'acme' })).not.toContain('data-blockingmode');
+  });
+
+  it('cbid "auto" reads nothing (no site is known until the browser has its host); the prop decides (CM-23)', async () => {
+    config('auto');
+    expect(await html({ cbid: 'auto', blockingMode: 'auto' })).toContain('data-cbid="auto" data-blockingmode="auto"');
+    expect(await html({ cbid: 'auto' })).not.toContain('data-blockingmode');
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it('a prop wins, and says so when it disagrees with the stored mode', async () => {
+    config('manual');
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const t = await html({ cbid: 'acme', culture: 'de', env: 'test', blockingMode: 'auto' });
+    expect(t).toContain('data-blockingmode="auto"');
     expect(t).toContain('data-culture="de"');
     expect(t).toContain('data-env="test"');
-    expect(t).toContain('data-blockingmode="manual"');
+    expect(warn).toHaveBeenCalledOnce();
+  });
+
+  it('carries the nonce and the excluded paths', async () => {
+    config('manual');
+    const t = await html({ cbid: 'acme', nonce: 'bm9uY2UxMjM0', excludePaths: ['/embed/', ' /f/ ', 'a,b'] });
+    expect(t).toContain('nonce="bm9uY2UxMjM0"');
+    expect(t).toContain('data-exclude-paths="/embed/,/f/"');
   });
 });
 
@@ -85,5 +120,19 @@ describe('hasConsent and onConsentChange', () => {
     await Promise.resolve();
     expect(seen).toEqual([]);
     delete (globalThis as { window?: unknown }).window;
+  });
+});
+
+describe('CSP for proxy.ts (FormFlow CM-09)', () => {
+  it('origins are fetched once as JSON; each request\'s policy is built synchronously with its nonce', async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify(MANIFEST)));
+    const origins = await cookieMunchOrigins({ cbid: 'acme', fetch: f as unknown as typeof fetch });
+    expect(JSON.parse(JSON.stringify(origins))).toEqual(origins);
+    expect(origins['script-src']).toEqual(["'self'", 'https://cdn.cookiemunch.net']);
+    const p = cookieMunchCspDirectives(origins, { nonce: 'bm9uY2UxMjM0', extra: { 'img-src': ['data:'] } });
+    expect(p).toContain("script-src 'self' https://cdn.cookiemunch.net 'nonce-bm9uY2UxMjM0'");
+    expect(p).toContain("img-src 'self' data:");
+    expect(p).toContain("style-src 'self' 'unsafe-inline'");
+    expect(() => cookieMunchCspDirectives(origins, { nonce: "x'; script-src *" })).toThrow();
   });
 });
