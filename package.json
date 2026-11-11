@@ -1,6 +1,6 @@
 {
   "name": "@cookiemunch/next",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Cookie Munch for the Next.js App Router: the tag, the Content-Security-Policy, and the React hooks",
   "type": "module",
   "main": "./dist/index.js",

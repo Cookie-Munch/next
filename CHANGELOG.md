@@ -2,6 +2,10 @@
 
 Every published release, newest first. Dates are the day the version was cut.
 
+## 0.3.1 (2026-11-11)
+
+- Added: `<CookieDeclarationServer cbid lang revalidate>`, a Server Component that puts the cookie declaration into the server HTML from the public feed; the embed draws the live table over it. Also `getCookieDeclaration` and `declarationHtml`.
+
 ## 0.3.0 (2026-11-11)
 
 - Changed: `<CookieMunchScript>` no longer defaults `blockingMode` to `auto`. Without the prop it uses the site's stored `blocking.mode`, read from the public config and cached for five minutes. A prop that disagrees with the stored mode logs a warning. It is now an async Server Component.

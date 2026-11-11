@@ -136,3 +136,32 @@ describe('CSP for proxy.ts (FormFlow CM-09)', () => {
     expect(() => cookieMunchCspDirectives(origins, { nonce: "x'; script-src *" })).toThrow();
   });
 });
+
+describe('<CookieDeclarationServer> (CM-11)', () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+  const feed = {
+    cookies: [
+      { name: 'lc_vid', category: 'statistics', provider: 'Lucida', purpose: 'Counts <visits>', expiry: '1 year' },
+      { name: 'ff_aid', category: 'necessary', provider: 'FormFlow', purpose: 'Signs you in', expiry: 'Session' },
+    ],
+    strings: { categories: { necessary: 'Notwendig', statistics: 'Statistik' }, cols: { name: 'Name', provider: 'Anbieter', purpose: 'Zweck', expiry: 'Ablauf' }, empty: 'Keine' },
+  };
+
+  it('puts every declared cookie into the server HTML, escaped, in the asked language, necessary first', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify(feed))));
+    const { CookieDeclarationServer } = await import('../src/index.js');
+    const out = renderToStaticMarkup(await CookieDeclarationServer({ cbid: 'acme', lang: 'de' }));
+    expect(vi.mocked(fetch).mock.calls[0]![0]).toBe('https://api.cookiemunch.net/api/v1/acme/cookies?lang=de');
+    expect(out).toContain('data-cc="declaration"');
+    expect(out).toContain('<td>ff_aid</td>');
+    expect(out).toContain('Counts &#60;visits&#62;');
+    expect(out.indexOf('Notwendig')).toBeLessThan(out.indexOf('Statistik'));
+    expect(out).toContain('<th>Anbieter</th>');
+  });
+
+  it('leaves an empty mount for the embed when the feed cannot be read', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('', { status: 503 })));
+    const { CookieDeclarationServer } = await import('../src/index.js');
+    expect(renderToStaticMarkup(await CookieDeclarationServer({ cbid: 'acme', emptyText: 'Loads with the banner' }))).toBe('<div data-cc="declaration" data-empty="Loads with the banner"></div>');
+  });
+});
