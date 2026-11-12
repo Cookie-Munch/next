@@ -45,6 +45,24 @@ describe('<CookieMunchScript>', () => {
     expect(t).toContain('nonce="bm9uY2UxMjM0"');
     expect(t).toContain('data-exclude-paths="/embed/,/f/"');
   });
+
+  it('a pinned site gets its release tag with integrity; a prop pins from code; stable stays floating (FormFlow CMR-3)', async () => {
+    const embed = (channel: string) => vi.stubGlobal('fetch', vi.fn(async (u: string) => new Response(JSON.stringify(u.includes('/v1/embed')
+      ? { tenant: { embed: { channel, version: 'abc123def456', integrity: 'sha384-PIN', src: 'x' } } }
+      : { blocking: { mode: 'manual' } }))));
+    embed('pinned:abc123def456');
+    const t = await html({ cbid: 'acme' });
+    expect(t).toContain('src="https://cdn.cookiemunch.net/v/abc123def456/consent.js"');
+    expect(t).toContain('integrity="sha384-PIN" crossorigin="anonymous"');
+    expect(vi.mocked(fetch).mock.calls.map((c) => c[0])).toContain('https://api.cookiemunch.net/v1/embed?cbid=acme');
+    embed('stable');
+    const s = await html({ cbid: 'acme' });
+    expect(s).toContain('src="https://cdn.cookiemunch.net/consent.js"');
+    expect(s).not.toContain('integrity');
+    const p = await html({ cbid: 'acme', version: 'fff000fff000', integrity: 'sha384-CODE' });
+    expect(p).toContain('/v/fff000fff000/consent.js" integrity="sha384-CODE"');
+    await expect(html({ cbid: 'acme', version: 'fff000fff000' })).rejects.toThrow(/together/);
+  });
 });
 
 const MANIFEST = {

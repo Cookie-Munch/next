@@ -55,7 +55,7 @@ export function policyString(policy: Map<string, string[]>): string {
 /** The `Content-Security-Policy` value for the site. Throws when the manifest cannot be read (a build should fail loudly). */
 export async function cookieMunchCsp(o: CspOptions): Promise<string> {
   const base = (o.apiBase ?? 'https://api.cookiemunch.net').replace(/\/+$/, '');
-  const res = await (o.fetch ?? fetch)(`${base}/v1/embed?cbid=${encodeURIComponent(o.cbid)}`, { headers: { Accept: 'application/json', 'User-Agent': 'cookiemunch-next/0.3.1' } });
+  const res = await (o.fetch ?? fetch)(`${base}/v1/embed?cbid=${encodeURIComponent(o.cbid)}`, { headers: { Accept: 'application/json', 'User-Agent': 'cookiemunch-next/0.3.2' } });
   if (!res.ok) throw new Error(`Cookie Munch: the embed manifest for ${o.cbid} answered ${res.status}`);
   return policyString(mergePolicy((await res.json()) as Manifest, o.extra));
 }
@@ -76,7 +76,7 @@ export async function cookieMunchHeaders(o: CspOptions & { source?: string }): P
  */
 export async function cookieMunchOrigins(o: Omit<CspOptions, 'extra'>): Promise<Record<string, string[]>> {
   const base = (o.apiBase ?? 'https://api.cookiemunch.net').replace(/\/+$/, '');
-  const res = await (o.fetch ?? fetch)(`${base}/v1/embed?cbid=${encodeURIComponent(o.cbid)}`, { headers: { Accept: 'application/json', 'User-Agent': 'cookiemunch-next/0.3.1' } });
+  const res = await (o.fetch ?? fetch)(`${base}/v1/embed?cbid=${encodeURIComponent(o.cbid)}`, { headers: { Accept: 'application/json', 'User-Agent': 'cookiemunch-next/0.3.2' } });
   if (!res.ok) throw new Error(`Cookie Munch: the embed manifest for ${o.cbid} answered ${res.status}`);
   return Object.fromEntries(mergePolicy((await res.json()) as Manifest));
 }

@@ -19,8 +19,31 @@ export interface CookieMunchScriptProps {
   nonce?: string;
   /** Paths the embed leaves entirely alone, e.g. `['/embed/', '/f/']` (`data-exclude-paths`). */
   excludePaths?: string[];
-  /** The API origin the stored mode is read from. Default `https://api.cookiemunch.net`. */
+  /** The API origin the stored mode and embed channel are read from. Default `https://api.cookiemunch.net`. */
   apiBase?: string;
+  /**
+   * Pin one embed release from code: `version` with its `integrity` (both from `GET /v1/embed?cbid=…`,
+   * `tenant.embed`). Left out, the site's stored `embedChannel` decides: a pinned site gets that
+   * release's immutable `/v/<version>/consent.js` with `integrity` and `crossorigin`, a stable one the
+   * floating `/consent.js` (which changes with every release, so it has no fixed hash).
+   */
+  version?: string;
+  integrity?: string;
+}
+
+/** The pinned tag the site's stored `embedChannel` asks for, or undefined for a stable site (or when it cannot be read). */
+export async function storedPinnedEmbed(cbid: string, apiBase = 'https://api.cookiemunch.net'): Promise<{ version: string; integrity: string } | undefined> {
+  if (cbid === 'auto') return undefined;
+  try {
+    const init = { headers: { Accept: 'application/json' }, next: { revalidate: 300 } } as RequestInit;
+    const res = await fetch(`${apiBase.replace(/\/+$/, '')}/v1/embed?cbid=${encodeURIComponent(cbid)}`, init);
+    if (!res.ok) return undefined;
+    const e = ((await res.json()) as { tenant?: { embed?: { channel?: unknown; version?: unknown; integrity?: unknown } } } | null)?.tenant?.embed;
+    if (typeof e?.channel !== 'string' || !e.channel.startsWith('pinned:')) return undefined;
+    return typeof e.version === 'string' && typeof e.integrity === 'string' ? { version: e.version, integrity: e.integrity } : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The site's stored blocking mode, or undefined when it cannot be read (the tag then leaves the attribute out: manual). */
@@ -39,8 +62,11 @@ export async function storedBlockingMode(cbid: string, apiBase = 'https://api.co
   }
 }
 
-export async function CookieMunchScript({ cbid, culture, blockingMode, env, src = 'https://cdn.cookiemunch.net', nonce, excludePaths, apiBase }: CookieMunchScriptProps) {
-  const stored = await storedBlockingMode(cbid, apiBase);
+export async function CookieMunchScript({ cbid, culture, blockingMode, env, src = 'https://cdn.cookiemunch.net', nonce, excludePaths, apiBase, version, integrity }: CookieMunchScriptProps) {
+  if ((version === undefined) !== (integrity === undefined)) throw new Error('Cookie Munch: <CookieMunchScript> takes version and integrity together (both from GET /v1/embed?cbid=…)');
+  if (version !== undefined && !/^[A-Za-z0-9._-]+$/.test(version)) throw new Error(`Cookie Munch: <CookieMunchScript version="${version}"> is not a release version`);
+  const [stored, pinned] = await Promise.all([storedBlockingMode(cbid, apiBase), version ? undefined : storedPinnedEmbed(cbid, apiBase)]);
+  const pin = version && integrity ? { version, integrity } : pinned;
   if (blockingMode && stored && blockingMode !== stored) {
     console.warn(`Cookie Munch: <CookieMunchScript blockingMode="${blockingMode}"> overrides ${cbid}'s stored blocking.mode "${stored}". Drop the prop to follow the stored setting.`);
   }
@@ -51,7 +77,8 @@ export async function CookieMunchScript({ cbid, culture, blockingMode, env, src 
   return (
     <script
       id="CookieMunch"
-      src={`${src.replace(/\/+$/, '')}/consent.js`}
+      src={`${src.replace(/\/+$/, '')}${pin ? `/v/${pin.version}` : ''}/consent.js`}
+      {...(pin ? { integrity: pin.integrity, crossOrigin: 'anonymous' as const } : {})}
       data-cbid={cbid}
       {...(mode ? { 'data-blockingmode': mode } : {})}
       {...(culture ? { 'data-culture': culture } : {})}

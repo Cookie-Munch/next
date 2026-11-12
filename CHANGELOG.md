@@ -2,6 +2,11 @@
 
 Every published release, newest first. Dates are the day the version was cut.
 
+## 0.3.2 (2026-11-12)
+
+- Changed: `<CookieMunchScript>` follows the site's `embedChannel`. A pinned site gets that release's `/v/<version>/consent.js` with `integrity` and `crossorigin="anonymous"`, read from `GET /v1/embed?cbid=` and cached for five minutes. A stable site keeps the floating tag.
+- Added: `version` and `integrity` props, to pin a release from code, and `storedPinnedEmbed(cbid, apiBase?)`.
+
 ## 0.3.1 (2026-11-11)
 
 - Added: `<CookieDeclarationServer cbid lang revalidate>`, a Server Component that puts the cookie declaration into the server HTML from the public feed; the embed draws the live table over it. Also `getCookieDeclaration` and `declarationHtml`.
