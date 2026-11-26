@@ -22,7 +22,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@cookiemunch/react": "^0.7.0"
+    "@cookiemunch/react": "^0.8.0"
   },
   "peerDependencies": {
     "react": ">=18",
