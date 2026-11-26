@@ -183,3 +183,22 @@ describe('<CookieDeclarationServer> (CM-11)', () => {
     expect(renderToStaticMarkup(await CookieDeclarationServer({ cbid: 'acme', emptyText: 'Loads with the banner' }))).toBe('<div data-cc="declaration" data-empty="Loads with the banner"></div>');
   });
 });
+
+describe('LinkHub CM-L7e and Sellstream CM-I1', () => {
+  it('re-exports @cookiemunch/react whole: RightsLink and CookieDeclaration come from @cookiemunch/next', async () => {
+    const next = await import('../src/index.js');
+    const react = await import('@cookiemunch/react');
+    for (const name of Object.keys(react)) expect(next, name).toHaveProperty(name);
+    expect(typeof next.RightsLink).toBe('function');
+  });
+
+  it('<CookieMunchTag> renders the same tag with no server read, so a client layout can mount it', async () => {
+    const { CookieMunchTag } = await import('../src/index.js');
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    const html = renderToStaticMarkup(<CookieMunchTag cbid="cb-1" blockingMode="auto" excludePaths={['/storefront/**']} nonce="n1" />);
+    expect(html).toBe('<script id="CookieMunch" src="https://cdn.cookiemunch.net/consent.js" data-cbid="cb-1" data-blockingmode="auto" data-exclude-paths="/storefront/**" nonce="n1"></script>');
+    expect(fetchSpy).not.toHaveBeenCalled();
+    vi.unstubAllGlobals();
+  });
+});

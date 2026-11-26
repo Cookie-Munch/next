@@ -63,14 +63,29 @@ export async function storedBlockingMode(cbid: string, apiBase = 'https://api.co
 }
 
 export async function CookieMunchScript({ cbid, culture, blockingMode, env, src = 'https://cdn.cookiemunch.net', nonce, excludePaths, apiBase, version, integrity }: CookieMunchScriptProps) {
-  if ((version === undefined) !== (integrity === undefined)) throw new Error('Cookie Munch: <CookieMunchScript> takes version and integrity together (both from GET /v1/embed?cbid=…)');
-  if (version !== undefined && !/^[A-Za-z0-9._-]+$/.test(version)) throw new Error(`Cookie Munch: <CookieMunchScript version="${version}"> is not a release version`);
+  checkPin(version, integrity);
   const [stored, pinned] = await Promise.all([storedBlockingMode(cbid, apiBase), version ? undefined : storedPinnedEmbed(cbid, apiBase)]);
-  const pin = version && integrity ? { version, integrity } : pinned;
   if (blockingMode && stored && blockingMode !== stored) {
     console.warn(`Cookie Munch: <CookieMunchScript blockingMode="${blockingMode}"> overrides ${cbid}'s stored blocking.mode "${stored}". Drop the prop to follow the stored setting.`);
   }
+  const pin = version && integrity ? { version, integrity } : pinned;
   const mode = blockingMode ?? stored;
+  return CookieMunchTag({ cbid, src, ...(culture ? { culture } : {}), ...(env ? { env } : {}), ...(nonce ? { nonce } : {}), ...(excludePaths ? { excludePaths } : {}), ...(pin ?? {}), ...(mode ? { blockingMode: mode } : {}) });
+}
+
+function checkPin(version?: string, integrity?: string): void {
+  if ((version === undefined) !== (integrity === undefined)) throw new Error('Cookie Munch: <CookieMunchScript> takes version and integrity together (both from GET /v1/embed?cbid=…)');
+  if (version !== undefined && !/^[A-Za-z0-9._-]+$/.test(version)) throw new Error(`Cookie Munch: <CookieMunchScript version="${version}"> is not a release version`);
+}
+
+/**
+ * The same tag with no server read, so it mounts from a Client Component layout too (Sellstream CM-I1):
+ * no hooks, nothing async. It reads nothing stored, so pass `blockingMode` (left out: manual) and, for a
+ * pinned release, `version` with `integrity`. Render it first in `<head>`, as the install snippet is.
+ */
+export function CookieMunchTag({ cbid, culture, blockingMode, env, src = 'https://cdn.cookiemunch.net', nonce, excludePaths, version, integrity }: Omit<CookieMunchScriptProps, 'apiBase'>) {
+  checkPin(version, integrity);
+  const pin = version && integrity ? { version, integrity } : undefined;
   const exclude = excludePaths?.map((p) => p.trim()).filter((p) => p && !p.includes(','));
   // A plain tag, as the install snippet is: prior-blocking needs it parsed before other scripts, so no
   // next/script strategy (they all load later).
@@ -80,7 +95,7 @@ export async function CookieMunchScript({ cbid, culture, blockingMode, env, src 
       src={`${src.replace(/\/+$/, '')}${pin ? `/v/${pin.version}` : ''}/consent.js`}
       {...(pin ? { integrity: pin.integrity, crossOrigin: 'anonymous' as const } : {})}
       data-cbid={cbid}
-      {...(mode ? { 'data-blockingmode': mode } : {})}
+      {...(blockingMode ? { 'data-blockingmode': blockingMode } : {})}
       {...(culture ? { 'data-culture': culture } : {})}
       {...(env ? { 'data-env': env } : {})}
       {...(exclude?.length ? { 'data-exclude-paths': exclude.join(',') } : {})}
